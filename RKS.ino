@@ -5,7 +5,7 @@
 #include <ESP32Servo.h>
 
 const char* apSSID = "RKS";
-const char* apPassword = "44AFT748";
+const char* apPassword = "MCTRKS";
 
 WebServer server(80);
 
@@ -53,7 +53,7 @@ bool otaOK = false;
 String logsBuf[10];
 uint8_t logsCount = 0;
 
-const char page[] = R"rawliteral(
+const char page[] PROGMEM = R"rawliteral(
 <!DOCTYPE html><html lang="tr"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -81,12 +81,6 @@ body{
   padding:16px;
 }
 .wrap{max-width:880px;margin:auto}
-.top{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:12px;
-  margin-bottom:12px;
-}
 .card{
   background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
   border:1px solid var(--line);
@@ -214,130 +208,143 @@ input[type=file]{
   font-size:13px;
   font-weight:700;
 }
+.footer{
+  margin-top:18px;
+  text-align:center;
+  font-size:12px;
+  color:var(--muted);
+  opacity:.9;
+}
 </style></head><body>
 <div class="wrap">
 
-  <div class="top">
-    <div class="card">
-      <div class="hero">
-        <div class="heroLeft">
-          <h1>RKS Newlight 125 Pro</h1>
-        </div>
-        <div class="heroRight">
-          <div class="badge">Wi-Fi: RKS</div>
-          <div class="badge">IP: 192.168.4.1</div>
-          <div class="statusPill"><span class="dot"></span><span id="st">Baglaniyor...</span></div>
-        </div>
+  <div class="card">
+    <div class="hero">
+      <div class="heroLeft">
+        <h1>RKS Newlight 125 Pro</h1>
       </div>
-    </div>
-  </div>
-
-  <div class="grid2">
-    <div class="card">
-      <div class="sectionTitle">
-        <h3>Kontrol</h3>
-      </div>
-      <div class="row">
-        <button id="motorBtn" class="red" onclick="cmd('motor')">Start</button>
-        <button id="bo" class="gray ctrl" onclick="cmd('lock_open')">Kilit Ac</button>
-        <button id="bc" class="gray ctrl" onclick="cmd('lock_close')">Kilit Kapat</button>
-        <button id="balarm" class="orange ctrl" onclick="cmd('alarm_toggle')">Alarm Cal</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="sectionTitle">
-        <h3>Aydinlatma</h3>
-      </div>
-      <div class="row">
-        <button id="bfar" class="red ctrl" onclick="cmd('far')">Far</button>
-        <button id="bfog" class="red ctrl" onclick="cmd('fog')">Sis</button>
-        <button id="bled" class="red ctrl" onclick="cmd('led')">LED</button>
-        <button id="bseat" class="orange ctrl" onclick="cmd('seat')">Koltuk</button>
+      <div class="heroRight">
+        <div class="badge">Şase No: L8YNCBPS0RKB21245</div>
+        <div class="statusPill"><span class="dot"></span><span id="st">Bağlanıyor...</span></div>
       </div>
     </div>
   </div>
 
   <div class="card">
     <div class="sectionTitle">
-      <h3>Ayna Ayarlari</h3>
+      <h3>Kontrol</h3>
+    </div>
+    <div class="row">
+      <button id="motorBtn" class="blue" onclick="cmd('motor')">Start</button>
+      <button id="bo" class="gray ctrl" onclick="cmd('lock_open')">Kilit Aç</button>
+      <button id="bc" class="gray ctrl" onclick="cmd('lock_close')">Kilit Kapat</button>
+      <button id="balarm" class="gray ctrl" onclick="cmd('alarm_toggle')">Alarm Çal</button>
+      <button id="bfar" class="gray ctrl" onclick="cmd('far')">Far</button>
+      <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Sis</button>
+      <button id="bled" class="gray ctrl" onclick="cmd('led')">LED</button>
+      <button id="bseat" class="gray ctrl" onclick="cmd('seat')">Koltuk</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sectionTitle">
+      <h3>Ayna Ayarları</h3>
     </div>
 
     <div class="grid2">
       <div class="sliderWrap">
-        <div class="sliderHead"><span>Sag Acik</span><b id="roV">90</b></div>
+        <div class="sliderHead"><span>Sağ Açık</span><b id="roV">90</b></div>
         <input id="ro" type="range" min="0" max="180" value="90" oninput="syncV()">
       </div>
       <div class="sliderWrap">
-        <div class="sliderHead"><span>Sol Acik</span><b id="loV">90</b></div>
+        <div class="sliderHead"><span>Sol Açık</span><b id="loV">90</b></div>
         <input id="lo" type="range" min="0" max="180" value="90" oninput="syncV()">
       </div>
       <div class="sliderWrap">
-        <div class="sliderHead"><span>Sag Kapali</span><b id="rcV">0</b></div>
+        <div class="sliderHead"><span>Sağ Kapalı</span><b id="rcV">0</b></div>
         <input id="rc" type="range" min="0" max="180" value="0" oninput="syncV()">
       </div>
       <div class="sliderWrap">
-        <div class="sliderHead"><span>Sol Kapali</span><b id="lcV">0</b></div>
+        <div class="sliderHead"><span>Sol Kapalı</span><b id="lcV">0</b></div>
         <input id="lc" type="range" min="0" max="180" value="0" oninput="syncV()">
       </div>
     </div>
 
     <div style="margin-top:12px" class="row">
-      <button class="blue ctrl" onclick="saveMir()">Ayna Ayarlarini Kaydet</button>
+      <button class="blue ctrl" onclick="saveMir()">Ayna Ayarlarını Kaydet</button>
     </div>
   </div>
 
   <div class="grid2">
     <div class="card">
       <div class="sectionTitle">
-        <h3>Sistem Guncelleme</h3>
+        <h3>Sistem Güncelleme</h3>
       </div>
       <div class="uploadBox">
         <form method="POST" action="/update" enctype="multipart/form-data">
           <input type="file" name="update">
-          <button class="green" type="submit">BIN Dosyasi Yukle</button>
+          <button class="blue" type="submit">BIN Dosyası Yükle</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="sectionTitle">
-        <h3>Bilgi Ekrani</h3>
+        <h3>Bilgi Ekranı</h3>
       </div>
       <div id="log"></div>
     </div>
   </div>
+
+  <div class="footer">• Designed and Programmed by Murat Can TUTAR •</div>
 
 </div>
 
 <script>
 let initDone=false;
 
+function id(x){ return document.getElementById(x); }
+
 function syncV(){
-  roV.textContent=ro.value;
-  loV.textContent=lo.value;
-  rcV.textContent=rc.value;
-  lcV.textContent=lc.value;
+  id('roV').textContent=id('ro').value;
+  id('loV').textContent=id('lo').value;
+  id('rcV').textContent=id('rc').value;
+  id('lcV').textContent=id('lc').value;
 }
 
 function setCtrls(ok){
   document.querySelectorAll('.ctrl').forEach(e=>e.disabled=!ok);
 }
 
+function flashBlue(buttonId, duration=700){
+  const el = id(buttonId);
+  if(!el) return;
+  el.dataset.flash = '1';
+  el.className = 'blue ctrl';
+  setTimeout(()=>{
+    delete el.dataset.flash;
+    upd();
+  }, duration);
+}
+
 function cmd(x){
+  if(x==='lock_open') flashBlue('bo', 900);
+  if(x==='lock_close') flashBlue('bc', 900);
+  if(x==='seat') flashBlue('bseat', 900);
+
   fetch('/c?x='+encodeURIComponent(x),{cache:'no-store'})
-  .then(()=>setTimeout(upd,150))
+  .then(()=>setTimeout(upd,200))
   .catch(()=>{
-    st.textContent='Baglanti Yok';
+    id('st').textContent='Bağlantı Yok';
     setCtrls(false);
   });
 }
 
 function saveMir(){
-  fetch('/m?ro='+ro.value+'&lo='+lo.value+'&rc='+rc.value+'&lc='+lc.value,{cache:'no-store'})
+  fetch('/m?ro='+id('ro').value+'&lo='+id('lo').value+'&rc='+id('rc').value+'&lc='+id('lc').value,{cache:'no-store'})
   .then(()=>setTimeout(upd,150))
   .catch(()=>{
-    st.textContent='Baglanti Yok';
+    id('st').textContent='Bağlantı Yok';
     setCtrls(false);
   });
 }
@@ -346,37 +353,41 @@ function upd(){
   fetch('/s',{cache:'no-store'})
   .then(r=>r.json())
   .then(d=>{
-    st.textContent=d.st;
+    id('st').textContent=d.st;
     setCtrls(true);
 
     if(!initDone){
-      ro.value=d.ro;
-      lo.value=d.lo;
-      rc.value=d.rc;
-      lc.value=d.lc;
+      id('ro').value=d.ro;
+      id('lo').value=d.lo;
+      id('rc').value=d.rc;
+      id('lc').value=d.lc;
       syncV();
       initDone=true;
     }
 
-    motorBtn.textContent=d.m?'Stop':'Start';
-    motorBtn.className=d.m?'green':'red';
+    id('motorBtn').textContent=d.m?'Stop':'Start';
+    id('motorBtn').className=d.m?'red':'blue';
 
-    balarm.textContent=d.a?'Alarm Kapat':'Alarm Cal';
-    balarm.className=d.a?'red ctrl':'orange ctrl';
+    if(!id('bo').dataset.flash) id('bo').className='gray ctrl';
+    if(!id('bc').dataset.flash) id('bc').className='gray ctrl';
+    if(!id('bseat').dataset.flash) id('bseat').className='gray ctrl';
 
-    bfar.className=d.f?'blue ctrl':'red ctrl';
-    bfog.className=d.g?'blue ctrl':'red ctrl';
-    bled.className=d.l?'green ctrl':'red ctrl';
+    id('balarm').textContent=d.a?'Alarm Kapat':'Alarm Çal';
+    id('balarm').className=d.a?'green ctrl':'gray ctrl';
 
-    bo.disabled=d.m;
-    bc.disabled=d.m;
-    balarm.disabled=d.m;
+    id('bfar').className=d.f?'green ctrl':'gray ctrl';
+    id('bfog').className=d.g?'green ctrl':'gray ctrl';
+    id('bled').className=d.l?'green ctrl':'gray ctrl';
 
-    log.innerHTML=d.lg||'';
-    log.scrollTop=log.scrollHeight;
+    id('bo').disabled=d.m;
+    id('bc').disabled=d.m;
+    id('balarm').disabled=d.m;
+
+    id('log').innerHTML=d.lg||'';
+    id('log').scrollTop=id('log').scrollHeight;
   })
   .catch(()=>{
-    st.textContent='Baglanti Yok';
+    id('st').textContent='Bağlantı Yok';
     setCtrls(false);
   });
 }
@@ -473,7 +484,7 @@ void stopAlarmWithLockOpen(bool logText = true) {
 
 String statusJson() {
   String j = "{";
-  j += "\"st\":\"Baglandi (192.168.4.1)\",";
+  j += "\"st\":\"Bağlandı\",";
   j += "\"m\":" + String(motorRunning ? "true" : "false") + ",";
   j += "\"a\":" + String(alarmActive ? "true" : "false") + ",";
   j += "\"f\":" + String(headlightState ? "true" : "false") + ",";
@@ -489,7 +500,7 @@ String statusJson() {
 }
 
 void handleRoot() {
-  server.send(200, "text/html; charset=utf-8", page);
+  server.send_P(200, "text/html; charset=utf-8", page);
 }
 
 void handleStatus() {
@@ -675,8 +686,6 @@ void setup() {
   server.begin();
 
   addLog("AP baslatildi");
-  addLog("SSID: RKS");
-  addLog("IP: 192.168.4.1");
   addLog("Panel hazir");
 }
 

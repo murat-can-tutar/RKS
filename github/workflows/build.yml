@@ -3,7 +3,7 @@ name: Build ESP32 BIN
 on:
   push:
     paths:
-      - 'RKS_Newlight_125_Pro/**'
+      - 'RKS.ino'
       - '.github/workflows/build.yml'
   workflow_dispatch:
 
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SKETCH_PATH: ./RKS_Newlight_125_Pro
+      SKETCH_PATH: .
       FQBN: esp32:esp32:esp32
       ESP32_CORE_URL: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 
@@ -24,9 +24,6 @@ jobs:
         uses: arduino/setup-arduino-cli@v2
         with:
           version: "1.x"
-
-      - name: Show Arduino CLI version
-        run: arduino-cli version
 
       - name: Update board index
         run: |
@@ -46,17 +43,19 @@ jobs:
 
       - name: Compile sketch and export BIN
         run: |
+          mkdir -p build
           arduino-cli compile \
             --fqbn "$FQBN" \
+            --build-path build \
             --export-binaries \
             "$SKETCH_PATH"
 
-      - name: Upload build artifacts
+      - name: Upload BIN files
         uses: actions/upload-artifact@v4
         with:
           name: esp32-bin
           path: |
-            ${{ env.SKETCH_PATH }}/*.bin
-            ${{ env.SKETCH_PATH }}/*.elf
-            ${{ env.SKETCH_PATH }}/*.map
+            build/*.bin
+            build/*.elf
+            build/*.map
           if-no-files-found: error

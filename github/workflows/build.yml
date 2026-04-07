@@ -1,0 +1,62 @@
+name: Build ESP32 BIN
+
+on:
+  push:
+    paths:
+      - 'RKS_Newlight_125_Pro/**'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      SKETCH_PATH: ./RKS_Newlight_125_Pro
+      FQBN: esp32:esp32:esp32
+      ESP32_CORE_URL: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: "1.x"
+
+      - name: Show Arduino CLI version
+        run: arduino-cli version
+
+      - name: Update board index
+        run: |
+          arduino-cli core update-index --additional-urls "$ESP32_CORE_URL"
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli core install esp32:esp32 --additional-urls "$ESP32_CORE_URL"
+
+      - name: Update library index
+        run: |
+          arduino-cli lib update-index
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib install "ESP32Servo"
+
+      - name: Compile sketch and export BIN
+        run: |
+          arduino-cli compile \
+            --fqbn "$FQBN" \
+            --export-binaries \
+            "$SKETCH_PATH"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-bin
+          path: |
+            ${{ env.SKETCH_PATH }}/*.bin
+            ${{ env.SKETCH_PATH }}/*.elf
+            ${{ env.SKETCH_PATH }}/*.map
+          if-no-files-found: error

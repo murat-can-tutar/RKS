@@ -109,6 +109,7 @@ button{
   cursor:pointer;
   transition:.18s ease;
   box-shadow:0 8px 18px rgba(0,0,0,.18);
+  border:1px solid rgba(255,255,255,.05);
 }
 button:active{transform:scale(.985)}
 button:disabled{opacity:.45;cursor:not-allowed}
@@ -116,7 +117,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .green{background:linear-gradient(180deg,#24cc7a,#14945a)}
 .blue{background:linear-gradient(180deg,#3f96ff,#216ce2)}
 .orange{background:linear-gradient(180deg,#f6a246,#dc7821)}
-.gray{background:linear-gradient(180deg,#72809a,#556178)}
+.gray{
+  background:linear-gradient(180deg,#4f6488,#384b6b);
+  box-shadow:0 8px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.05);
+} 
 .sectionTitle{
   display:flex;
   justify-content:space-between;

@@ -424,7 +424,17 @@ String getLogs() {
 void relayWrite(uint8_t pin, bool onState) {
   digitalWrite(pin, onState ? RELAY_ON : RELAY_OFF);
 }
+void startFogSequence() {
+  for (int i = 0; i < 2; i++) {
+    relayWrite(RELAY_FOG, true);
+    delay(500);
+    relayWrite(RELAY_FOG, false);
+    delay(500);
+  }
 
+  relayWrite(RELAY_FOG, true);
+  fogState = true;
+}
 void pulseRelay(uint8_t pin, uint16_t onMs = 250) {
   relayWrite(pin, true);
   delay(onMs);
@@ -576,9 +586,15 @@ void handleCmd() {
     addLog(headlightState ? "Far acildi [21]" : "Far kapandi [21]");
   }
   else if (x == "fog") {
-    fogState = !fogState;
-    relayWrite(RELAY_FOG, fogState);
-    addLog(fogState ? "Sis acildi [19]" : "Sis kapandi [19]");
+  if (!fogState) {
+    addLog("Çakar acilis sekansi basladi [19]");
+    startFogSequence();
+    addLog("Çakar acildi [19]");
+  } else {
+    fogState = false;
+    relayWrite(RELAY_FOG, false);
+    addLog("Çakar kapandi [19]");
+  }
   }
   else if (x == "led") {
     ledState = !ledState;

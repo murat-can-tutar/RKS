@@ -12,10 +12,10 @@ WebServer server(80);
 const uint8_t RELAY_ON  = LOW;
 const uint8_t RELAY_OFF = HIGH;
 
-#define RELAY_LOCK_OPEN   13
+#define RELAY_LOCK_OPEN   17
 #define RELAY_LOCK_CLOSE  14
 #define RELAY_START       16
-#define RELAY_ALARM       17
+#define RELAY_ALARM       13
 #define RELAY_LED         18
 #define RELAY_FOG         19
 #define RELAY_HEADLIGHT   21
@@ -244,7 +244,7 @@ input[type=file]{
       <button id="bc" class="gray ctrl" onclick="cmd('lock_close')">Kilit Kapat</button>
       <button id="balarm" class="gray ctrl" onclick="cmd('alarm_toggle')">Alarm Çal</button>
       <button id="bfar" class="gray ctrl" onclick="cmd('far')">Far</button>
-      <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Sis</button>
+      <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Çakar</button>
       <button id="bled" class="gray ctrl" onclick="cmd('led')">LED</button>
       <button id="bseat" class="gray ctrl" onclick="cmd('seat')">Koltuk</button>
     </div>

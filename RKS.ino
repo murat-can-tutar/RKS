@@ -5,7 +5,7 @@
 #include <ESP32Servo.h>
 
 const char* apSSID = "RKS";
-const char* apPassword = "MCTRKS";
+const char* apPassword = "MCT44RKS";
 
 WebServer server(80);
 

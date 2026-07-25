@@ -3,7 +3,7 @@
 #include <Update.h>
 #include <EEPROM.h>
 #include <ESP32Servo.h>
-#include <Adafruit_NeoPixel.h> // Adreslenebilir LED kütüphanesi
+#include <Adafruit_NeoPixel.h>
 
 const char* apSSID = "RKS";
 const char* apPassword = "MCT44RKS";
@@ -17,7 +17,7 @@ const uint8_t RELAY_OFF = HIGH;
 #define RELAY_LOCK_CLOSE  14
 #define RELAY_START       16
 #define RELAY_ALARM       13
-#define RELAY_LED         18
+#define RELAY_LED         18  // Pin 18 Normal Röle LED
 #define RELAY_FOG         19
 #define RELAY_HEADLIGHT   21
 #define RELAY_SEAT        22
@@ -28,7 +28,7 @@ const uint8_t RELAY_OFF = HIGH;
 #define SERVO_TRIGGER_PIN 27
 
 // --- ADRESLENEBİLİR LED AYARLARI ---
-#define ADDR_LED_PIN      4   // Adreslenebilir LED Data Pini
+#define ADDR_LED_PIN      4   // Adreslenebilir LED Data Pini (GPIO 4)
 #define NUM_LEDS          30  // Şerit LED'deki toplam LED sayısı
 
 Adafruit_NeoPixel strip(NUM_LEDS, ADDR_LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -51,7 +51,8 @@ Servo servoLeft;
 
 bool motorRunning = false;
 bool alarmActive = false;
-bool ledState = false;
+bool ledState = false;      // Pin 18 Röle LED Durumu
+bool addrLedState = false;  // Adreslenebilir LED Durumu
 bool fogState = false;
 bool headlightState = false;
 bool mirrorsOpen = false;
@@ -60,17 +61,17 @@ bool otaOK = false;
 String logsBuf[10];
 uint8_t logsCount = 0;
 
-// --- ANIMASYON FONKSIYONLARI ---
-// Merkezden dışa doğru açılış animasyonu (Mavi/Cyan tonlarında)
+// --- ADRESLENEBİLİR LED ANIMASYONLARI ---
+// Merkezden dışa doğru açılış animasyonu
 void animOpen() {
   int mid = NUM_LEDS / 2;
   for (int i = 0; i <= mid; i++) {
-    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 180, 255));
+    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 180, 255)); // Cyan / Mavi ton
     if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 180, 255));
     strip.show();
-    delay(20);
+    delay(25);
   }
-  ledState = true;
+  addrLedState = true;
 }
 
 // Dıştan merkeze doğru kapanış animasyonu
@@ -80,9 +81,9 @@ void animClose() {
     if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 0, 0));
     if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 0, 0));
     strip.show();
-    delay(20);
+    delay(25);
   }
-  ledState = false;
+  addrLedState = false;
 }
 
 const char page[] PROGMEM = R"rawliteral(
@@ -127,7 +128,7 @@ h3{font-size:18px}
 .small{font-size:13px;color:var(--muted)}
 .row{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
   gap:10px;
 }
 button{
@@ -277,7 +278,8 @@ input[type=file]{
       <button id="balarm" class="gray ctrl" onclick="cmd('alarm_toggle')">Alarm Çal</button>
       <button id="bfar" class="gray ctrl" onclick="cmd('far')">Far</button>
       <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Çakar</button>
-      <button id="bled" class="gray ctrl" onclick="cmd('led')">LED</button>
+      <button id="bled" class="gray ctrl" onclick="cmd('led')">LED [18]</button>
+      <button id="baddrled" class="gray ctrl" onclick="cmd('addr_led')">Kayar LED</button>
       <button id="bseat" class="gray ctrl" onclick="cmd('seat')">Koltuk</button>
     </div>
   </div>
@@ -414,6 +416,7 @@ function upd(){
     id('bfar').className=d.f?'green ctrl':'gray ctrl';
     id('bfog').className=d.g?'green ctrl':'gray ctrl';
     id('bled').className=d.l?'green ctrl':'gray ctrl';
+    id('baddrled').className=d.al?'green ctrl':'gray ctrl'; // Adreslenebilir LED butonu güncellenir
 
     id('bo').disabled=d.m;
     id('bc').disabled=d.m;
@@ -538,6 +541,7 @@ String statusJson() {
   j += "\"f\":" + String(headlightState ? "true" : "false") + ",";
   j += "\"g\":" + String(fogState ? "true" : "false") + ",";
   j += "\"l\":" + String(ledState ? "true" : "false") + ",";
+  j += "\"al\":" + String(addrLedState ? "true" : "false") + ",";
   j += "\"ro\":" + String(cfg.rightOpen) + ",";
   j += "\"lo\":" + String(cfg.leftOpen) + ",";
   j += "\"rc\":" + String(cfg.rightClosed) + ",";
@@ -562,7 +566,7 @@ void handleCmd() {
     if (!motorRunning) {
       addLog("Motor start -> Kilit Ac [13]");
       pulseRelay(RELAY_LOCK_OPEN, 250);
-      animOpen(); // Motor başlatılırken kilit açılınca LED animasyonu çalıştırılır
+      animOpen(); // Motor çalıştırılırken kilit açılınca Adreslenebilir LED animasyonu başlar
       if (alarmActive) {
         alarmActive = false;
         addLog("Alarm kapatildi");
@@ -596,17 +600,17 @@ void handleCmd() {
 
   if (x == "lock_open") {
     pulseRelay(RELAY_LOCK_OPEN, 1000);
-    animOpen(); // Kilit aç animasyonu
+    animOpen(); // Kilit Açılınca Adreslenebilir LED Animasyonu
     if (alarmActive) {
       alarmActive = false;
       addLog("Alarm kilit ac ile kapatildi");
     }
-    addLog("Kilit ac [13] + LED Animasyonu");
+    addLog("Kilit ac [13] + Kayar LED Acildi");
   }
   else if (x == "lock_close") {
-    animClose(); // Kilit kapat animasyonu
+    animClose(); // Kilit Kapanınca Adreslenebilir LED Animasyonu
     lockCloseWithDoor();
-    addLog("Kilit kapat [14] + Kapi [23] + LED Kapanis");
+    addLog("Kilit kapat [14] + Kapi [23] + Kayar LED Kapandi");
   }
   else if (x == "alarm_toggle") {
     if (!alarmActive) {
@@ -634,15 +638,19 @@ void handleCmd() {
     }
   }
   else if (x == "led") {
-    // Web Panelinden LED butonuna basıldığında
-    if (!ledState) {
+    // Sadece Pin 18 Röleli LED'i Aç/Kapatır (Orijinal davranış)
+    ledState = !ledState;
+    relayWrite(RELAY_LED, ledState);
+    addLog(ledState ? "Röle LED acildi [18]" : "Röle LED kapandi [18]");
+  }
+  else if (x == "addr_led") {
+    // Sadece Adreslenebilir LED'i (GPIO 4) Web Panelinden Aç/Kapatır
+    if (!addrLedState) {
       animOpen();
-      relayWrite(RELAY_LED, true);
-      addLog("Adreslenebilir LED acildi [4/18]");
+      addLog("Kayar LED acildi [GPIO 4]");
     } else {
       animClose();
-      relayWrite(RELAY_LED, false);
-      addLog("Adreslenebilir LED kapandi [4/18]");
+      addLog("Kayar LED kapandi [GPIO 4]");
     }
   }
   else if (x == "seat") {
@@ -758,30 +766,4 @@ void setup() {
   addLog("Panel hazir");
 }
 
-void loop() {
-  server.handleClient();
-
-  static bool trigState = false;
-  static bool firstRun = true;
-
-  bool trig = digitalRead(SERVO_TRIGGER_PIN);
-
-  if (firstRun) {
-    firstRun = false;
-    trigState = trig;
-    if (trigState) openMirrors();
-    else closeMirrors();
-  }
-
-  if (!trigState && trig) {
-    trigState = true;
-    addLog("Servo tetik aktif [27]");
-    openMirrors();
-  } else if (trigState && !trig) {
-    trigState = false;
-    addLog("Servo tetik pasif [27]");
-    closeMirrors();
-  }
-
-  delay(2);
-}
+void 

@@ -1,4 +1,4 @@
-name: Build ESP32 BIN
+Name: Build ESP32 BIN
 
 on:
   push:
@@ -40,6 +40,7 @@ jobs:
       - name: Install libraries
         run: |
           arduino-cli lib install "ESP32Servo"
+          arduino-cli lib install "Adafruit NeoPixel"
 
       - name: Compile sketch and export BIN
         run: |
@@ -59,3 +60,4 @@ jobs:
             build/*.elf
             build/*.map
           if-no-files-found: error
+          

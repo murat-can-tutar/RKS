@@ -66,7 +66,7 @@ uint8_t logsCount = 0;
 void animOpen() {
   int mid = NUM_LEDS / 2;
   for (int i = 0; i <= mid; i++) {
-    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 180, 255)); // Cyan / Mavi ton
+    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 180, 255));
     if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 180, 255));
     strip.show();
     delay(25);
@@ -416,7 +416,7 @@ function upd(){
     id('bfar').className=d.f?'green ctrl':'gray ctrl';
     id('bfog').className=d.g?'green ctrl':'gray ctrl';
     id('bled').className=d.l?'green ctrl':'gray ctrl';
-    id('baddrled').className=d.al?'green ctrl':'gray ctrl'; // Adreslenebilir LED butonu güncellenir
+    id('baddrled').className=d.al?'green ctrl':'gray ctrl';
 
     id('bo').disabled=d.m;
     id('bc').disabled=d.m;
@@ -566,7 +566,7 @@ void handleCmd() {
     if (!motorRunning) {
       addLog("Motor start -> Kilit Ac [13]");
       pulseRelay(RELAY_LOCK_OPEN, 250);
-      animOpen(); // Motor çalıştırılırken kilit açılınca Adreslenebilir LED animasyonu başlar
+      animOpen();
       if (alarmActive) {
         alarmActive = false;
         addLog("Alarm kapatildi");
@@ -600,7 +600,7 @@ void handleCmd() {
 
   if (x == "lock_open") {
     pulseRelay(RELAY_LOCK_OPEN, 1000);
-    animOpen(); // Kilit Açılınca Adreslenebilir LED Animasyonu
+    animOpen();
     if (alarmActive) {
       alarmActive = false;
       addLog("Alarm kilit ac ile kapatildi");
@@ -608,7 +608,7 @@ void handleCmd() {
     addLog("Kilit ac [13] + Kayar LED Acildi");
   }
   else if (x == "lock_close") {
-    animClose(); // Kilit Kapanınca Adreslenebilir LED Animasyonu
+    animClose();
     lockCloseWithDoor();
     addLog("Kilit kapat [14] + Kapi [23] + Kayar LED Kapandi");
   }
@@ -638,13 +638,11 @@ void handleCmd() {
     }
   }
   else if (x == "led") {
-    // Sadece Pin 18 Röleli LED'i Aç/Kapatır (Orijinal davranış)
     ledState = !ledState;
     relayWrite(RELAY_LED, ledState);
     addLog(ledState ? "Röle LED acildi [18]" : "Röle LED kapandi [18]");
   }
   else if (x == "addr_led") {
-    // Sadece Adreslenebilir LED'i (GPIO 4) Web Panelinden Aç/Kapatır
     if (!addrLedState) {
       animOpen();
       addLog("Kayar LED acildi [GPIO 4]");
@@ -718,10 +716,9 @@ void setup() {
 
   loadCfg();
 
-  // Adreslenebilir LED Başlatma
   strip.begin();
-  strip.show(); // Başlangıçta tüm LED'leri kapat
-  strip.setBrightness(255); // Parlaklık ayarı (0-255)
+  strip.show();
+  strip.setBrightness(255);
 
   pinMode(RELAY_LOCK_OPEN, OUTPUT);
   pinMode(RELAY_LOCK_CLOSE, OUTPUT);
@@ -765,5 +762,30 @@ void setup() {
   addLog("AP baslatildi");
   addLog("Panel hazir");
 }
+void loop() {
+  server.handleClient();
 
-void 
+  static bool trigState = false;
+  static bool firstRun = true;
+
+  bool trig = digitalRead(SERVO_TRIGGER_PIN);
+
+  if (firstRun) {
+    firstRun = false;
+    trigState = trig;
+    if (trigState) openMirrors();
+    else closeMirrors();
+  }
+
+  if (!trigState && trig) {
+    trigState = true;
+    addLog("Servo tetik aktif [27]");
+    openMirrors();
+  } else if (trigState && !trig) {
+    trigState = false;
+    addLog("Servo tetik pasif [27]");
+    closeMirrors();
+  }
+
+  delay(2);
+}

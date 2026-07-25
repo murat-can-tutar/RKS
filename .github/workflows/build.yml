@@ -1,4 +1,4 @@
-Name: Build ESP32 BIN
+name: Build ESP32 BIN
 
 on:
   push:
@@ -60,4 +60,3 @@ jobs:
             build/*.elf
             build/*.map
           if-no-files-found: error
-          

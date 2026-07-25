@@ -3,6 +3,7 @@
 #include <Update.h>
 #include <EEPROM.h>
 #include <ESP32Servo.h>
+#include <Adafruit_NeoPixel.h> // Adreslenebilir LED kütüphanesi
 
 const char* apSSID = "RKS";
 const char* apPassword = "MCT44RKS";
@@ -25,6 +26,12 @@ const uint8_t RELAY_OFF = HIGH;
 #define SERVO_RIGHT_PIN   25
 #define SERVO_LEFT_PIN    26
 #define SERVO_TRIGGER_PIN 27
+
+// --- ADRESLENEBİLİR LED AYARLARI ---
+#define ADDR_LED_PIN      4   // Adreslenebilir LED Data Pini
+#define NUM_LEDS          30  // Şerit LED'deki toplam LED sayısı
+
+Adafruit_NeoPixel strip(NUM_LEDS, ADDR_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 #define EEPROM_SIZE 64
 #define EEPROM_MAGIC 0x4D
@@ -52,6 +59,31 @@ bool otaOK = false;
 
 String logsBuf[10];
 uint8_t logsCount = 0;
+
+// --- ANIMASYON FONKSIYONLARI ---
+// Merkezden dışa doğru açılış animasyonu (Mavi/Cyan tonlarında)
+void animOpen() {
+  int mid = NUM_LEDS / 2;
+  for (int i = 0; i <= mid; i++) {
+    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 180, 255));
+    if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 180, 255));
+    strip.show();
+    delay(20);
+  }
+  ledState = true;
+}
+
+// Dıştan merkeze doğru kapanış animasyonu
+void animClose() {
+  int mid = NUM_LEDS / 2;
+  for (int i = mid; i >= 0; i--) {
+    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 0, 0));
+    if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 0, 0));
+    strip.show();
+    delay(20);
+  }
+  ledState = false;
+}
 
 const char page[] PROGMEM = R"rawliteral(
 <!DOCTYPE html><html lang="tr"><head>
@@ -424,6 +456,7 @@ String getLogs() {
 void relayWrite(uint8_t pin, bool onState) {
   digitalWrite(pin, onState ? RELAY_ON : RELAY_OFF);
 }
+
 void startFogSequence() {
   for (int i = 0; i < 2; i++) {
     relayWrite(RELAY_FOG, true);
@@ -435,6 +468,7 @@ void startFogSequence() {
   relayWrite(RELAY_FOG, true);
   fogState = true;
 }
+
 void pulseRelay(uint8_t pin, uint16_t onMs = 250) {
   relayWrite(pin, true);
   delay(onMs);
@@ -528,6 +562,7 @@ void handleCmd() {
     if (!motorRunning) {
       addLog("Motor start -> Kilit Ac [13]");
       pulseRelay(RELAY_LOCK_OPEN, 250);
+      animOpen(); // Motor başlatılırken kilit açılınca LED animasyonu çalıştırılır
       if (alarmActive) {
         alarmActive = false;
         addLog("Alarm kapatildi");
@@ -561,15 +596,17 @@ void handleCmd() {
 
   if (x == "lock_open") {
     pulseRelay(RELAY_LOCK_OPEN, 1000);
+    animOpen(); // Kilit aç animasyonu
     if (alarmActive) {
       alarmActive = false;
       addLog("Alarm kilit ac ile kapatildi");
     }
-    addLog("Kilit ac [13]");
+    addLog("Kilit ac [13] + LED Animasyonu");
   }
   else if (x == "lock_close") {
+    animClose(); // Kilit kapat animasyonu
     lockCloseWithDoor();
-    addLog("Kilit kapat [14] + Kapi [23]");
+    addLog("Kilit kapat [14] + Kapi [23] + LED Kapanis");
   }
   else if (x == "alarm_toggle") {
     if (!alarmActive) {
@@ -586,20 +623,27 @@ void handleCmd() {
     addLog(headlightState ? "Far acildi [21]" : "Far kapandi [21]");
   }
   else if (x == "fog") {
-  if (!fogState) {
-    addLog("Çakar acilis sekansi basladi [19]");
-    startFogSequence();
-    addLog("Çakar acildi [19]");
-  } else {
-    fogState = false;
-    relayWrite(RELAY_FOG, false);
-    addLog("Çakar kapandi [19]");
-  }
+    if (!fogState) {
+      addLog("Çakar acilis sekansi basladi [19]");
+      startFogSequence();
+      addLog("Çakar acildi [19]");
+    } else {
+      fogState = false;
+      relayWrite(RELAY_FOG, false);
+      addLog("Çakar kapandi [19]");
+    }
   }
   else if (x == "led") {
-    ledState = !ledState;
-    relayWrite(RELAY_LED, ledState);
-    addLog(ledState ? "LED acildi [18]" : "LED kapandi [18]");
+    // Web Panelinden LED butonuna basıldığında
+    if (!ledState) {
+      animOpen();
+      relayWrite(RELAY_LED, true);
+      addLog("Adreslenebilir LED acildi [4/18]");
+    } else {
+      animClose();
+      relayWrite(RELAY_LED, false);
+      addLog("Adreslenebilir LED kapandi [4/18]");
+    }
   }
   else if (x == "seat") {
     addLog("Koltuk pulse [22]");
@@ -665,6 +709,11 @@ void setup() {
   Serial.begin(115200);
 
   loadCfg();
+
+  // Adreslenebilir LED Başlatma
+  strip.begin();
+  strip.show(); // Başlangıçta tüm LED'leri kapat
+  strip.setBrightness(255); // Parlaklık ayarı (0-255)
 
   pinMode(RELAY_LOCK_OPEN, OUTPUT);
   pinMode(RELAY_LOCK_CLOSE, OUTPUT);

@@ -669,6 +669,13 @@ void stopAlarmWithLockOpen(bool logText = true) {
 }
 
 String statusJson() {
+  void handleRoot() {
+  server.send_P(200, "text/html; charset=utf-8", page);
+}
+
+void handleStatus() {
+  server.send(200, "application/json", statusJson());
+}
   char hexCol[7];
   snprintf(hexCol, sizeof(hexCol), "%02X%02X%02X", cfg.solidR, cfg.solidG, cfg.solidB);
 

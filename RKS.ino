@@ -341,14 +341,15 @@ void setup() {
   loadConfig();
 
   // FastLED Başlatma
-  FastLED.addLeds<WS2812B, LED_STRIP_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2811, LED_STRIP_PIN, GRB>(leds, NUM_LEDS);
+  
   FastLED.setBrightness(cfg.brightness);
   FastLED.clear();
   FastLED.show();
 
   // Wi-Fi AP Modu Başlatma
   WiFi.mode(WIFI_AP);
-  WiFi.softAP("RKS_LED_Control", "12345678password");
+  WiFi.softAP("RKS", "44AFT748");
   Serial.println("Wi-Fi AP Aktif. IP Adresi: 192.168.4.1");
 
   // Web Sunucu Rotaları

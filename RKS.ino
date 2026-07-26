@@ -3,21 +3,20 @@
 #include <Update.h>
 #include <EEPROM.h>
 #include <ESP32Servo.h>
-#include <Adafruit_NeoPixel.h>
 
 const char* apSSID = "RKS";
-const char* apPassword = "MCT44RKS";
+const char* apPassword = "44AFT748";
 
 WebServer server(80);
 
 const uint8_t RELAY_ON  = LOW;
 const uint8_t RELAY_OFF = HIGH;
 
-#define RELAY_LOCK_OPEN   17
+#define RELAY_LOCK_OPEN   13
 #define RELAY_LOCK_CLOSE  14
 #define RELAY_START       16
-#define RELAY_ALARM       13
-#define RELAY_LED         18  // Pin 18 Normal Röle LED
+#define RELAY_ALARM       17
+#define RELAY_LED         18
 #define RELAY_FOG         19
 #define RELAY_HEADLIGHT   21
 #define RELAY_SEAT        22
@@ -26,12 +25,6 @@ const uint8_t RELAY_OFF = HIGH;
 #define SERVO_RIGHT_PIN   25
 #define SERVO_LEFT_PIN    26
 #define SERVO_TRIGGER_PIN 27
-
-// --- ADRESLENEBİLİR LED AYARLARI ---
-#define ADDR_LED_PIN      4   // Adreslenebilir LED Data Pini (GPIO 4)
-#define NUM_LEDS          30  // Şerit LED'deki toplam LED sayısı
-
-Adafruit_NeoPixel strip(NUM_LEDS, ADDR_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 #define EEPROM_SIZE 64
 #define EEPROM_MAGIC 0x4D
@@ -51,8 +44,7 @@ Servo servoLeft;
 
 bool motorRunning = false;
 bool alarmActive = false;
-bool ledState = false;      // Pin 18 Röle LED Durumu
-bool addrLedState = false;  // Adreslenebilir LED Durumu
+bool ledState = false;
 bool fogState = false;
 bool headlightState = false;
 bool mirrorsOpen = false;
@@ -60,31 +52,6 @@ bool otaOK = false;
 
 String logsBuf[10];
 uint8_t logsCount = 0;
-
-// --- ADRESLENEBİLİR LED ANIMASYONLARI ---
-// Merkezden dışa doğru açılış animasyonu
-void animOpen() {
-  int mid = NUM_LEDS / 2;
-  for (int i = 0; i <= mid; i++) {
-    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 180, 255));
-    if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 180, 255));
-    strip.show();
-    delay(25);
-  }
-  addrLedState = true;
-}
-
-// Dıştan merkeze doğru kapanış animasyonu
-void animClose() {
-  int mid = NUM_LEDS / 2;
-  for (int i = mid; i >= 0; i--) {
-    if (mid + i < NUM_LEDS) strip.setPixelColor(mid + i, strip.Color(0, 0, 0));
-    if (mid - i >= 0)       strip.setPixelColor(mid - i, strip.Color(0, 0, 0));
-    strip.show();
-    delay(25);
-  }
-  addrLedState = false;
-}
 
 const char page[] PROGMEM = R"rawliteral(
 <!DOCTYPE html><html lang="tr"><head>
@@ -128,7 +95,7 @@ h3{font-size:18px}
 .small{font-size:13px;color:var(--muted)}
 .row{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
   gap:10px;
 }
 button{
@@ -142,7 +109,6 @@ button{
   cursor:pointer;
   transition:.18s ease;
   box-shadow:0 8px 18px rgba(0,0,0,.18);
-  border:1px solid rgba(255,255,255,.05);
 }
 button:active{transform:scale(.985)}
 button:disabled{opacity:.45;cursor:not-allowed}
@@ -150,10 +116,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .green{background:linear-gradient(180deg,#24cc7a,#14945a)}
 .blue{background:linear-gradient(180deg,#3f96ff,#216ce2)}
 .orange{background:linear-gradient(180deg,#f6a246,#dc7821)}
-.gray{
-  background:linear-gradient(180deg,#4f6488,#384b6b);
-  box-shadow:0 8px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.05);
-} 
+.gray{background:linear-gradient(180deg,#72809a,#556178)}
 .sectionTitle{
   display:flex;
   justify-content:space-between;
@@ -277,9 +240,8 @@ input[type=file]{
       <button id="bc" class="gray ctrl" onclick="cmd('lock_close')">Kilit Kapat</button>
       <button id="balarm" class="gray ctrl" onclick="cmd('alarm_toggle')">Alarm Çal</button>
       <button id="bfar" class="gray ctrl" onclick="cmd('far')">Far</button>
-      <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Çakar</button>
-      <button id="bled" class="gray ctrl" onclick="cmd('led')">LED [18]</button>
-      <button id="baddrled" class="gray ctrl" onclick="cmd('addr_led')">Kayar LED</button>
+      <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Sis</button>
+      <button id="bled" class="gray ctrl" onclick="cmd('led')">LED</button>
       <button id="bseat" class="gray ctrl" onclick="cmd('seat')">Koltuk</button>
     </div>
   </div>
@@ -416,7 +378,6 @@ function upd(){
     id('bfar').className=d.f?'green ctrl':'gray ctrl';
     id('bfog').className=d.g?'green ctrl':'gray ctrl';
     id('bled').className=d.l?'green ctrl':'gray ctrl';
-    id('baddrled').className=d.al?'green ctrl':'gray ctrl';
 
     id('bo').disabled=d.m;
     id('bc').disabled=d.m;
@@ -458,18 +419,6 @@ String getLogs() {
 
 void relayWrite(uint8_t pin, bool onState) {
   digitalWrite(pin, onState ? RELAY_ON : RELAY_OFF);
-}
-
-void startFogSequence() {
-  for (int i = 0; i < 2; i++) {
-    relayWrite(RELAY_FOG, true);
-    delay(500);
-    relayWrite(RELAY_FOG, false);
-    delay(500);
-  }
-
-  relayWrite(RELAY_FOG, true);
-  fogState = true;
 }
 
 void pulseRelay(uint8_t pin, uint16_t onMs = 250) {
@@ -541,7 +490,6 @@ String statusJson() {
   j += "\"f\":" + String(headlightState ? "true" : "false") + ",";
   j += "\"g\":" + String(fogState ? "true" : "false") + ",";
   j += "\"l\":" + String(ledState ? "true" : "false") + ",";
-  j += "\"al\":" + String(addrLedState ? "true" : "false") + ",";
   j += "\"ro\":" + String(cfg.rightOpen) + ",";
   j += "\"lo\":" + String(cfg.leftOpen) + ",";
   j += "\"rc\":" + String(cfg.rightClosed) + ",";
@@ -566,7 +514,6 @@ void handleCmd() {
     if (!motorRunning) {
       addLog("Motor start -> Kilit Ac [13]");
       pulseRelay(RELAY_LOCK_OPEN, 250);
-      animOpen();
       if (alarmActive) {
         alarmActive = false;
         addLog("Alarm kapatildi");
@@ -600,17 +547,15 @@ void handleCmd() {
 
   if (x == "lock_open") {
     pulseRelay(RELAY_LOCK_OPEN, 1000);
-    animOpen();
     if (alarmActive) {
       alarmActive = false;
       addLog("Alarm kilit ac ile kapatildi");
     }
-    addLog("Kilit ac [13] + Kayar LED Acildi");
+    addLog("Kilit ac [13]");
   }
   else if (x == "lock_close") {
-    animClose();
     lockCloseWithDoor();
-    addLog("Kilit kapat [14] + Kapi [23] + Kayar LED Kapandi");
+    addLog("Kilit kapat [14] + Kapi [23]");
   }
   else if (x == "alarm_toggle") {
     if (!alarmActive) {
@@ -627,29 +572,14 @@ void handleCmd() {
     addLog(headlightState ? "Far acildi [21]" : "Far kapandi [21]");
   }
   else if (x == "fog") {
-    if (!fogState) {
-      addLog("Çakar acilis sekansi basladi [19]");
-      startFogSequence();
-      addLog("Çakar acildi [19]");
-    } else {
-      fogState = false;
-      relayWrite(RELAY_FOG, false);
-      addLog("Çakar kapandi [19]");
-    }
+    fogState = !fogState;
+    relayWrite(RELAY_FOG, fogState);
+    addLog(fogState ? "Sis acildi [19]" : "Sis kapandi [19]");
   }
   else if (x == "led") {
     ledState = !ledState;
     relayWrite(RELAY_LED, ledState);
-    addLog(ledState ? "Röle LED acildi [18]" : "Röle LED kapandi [18]");
-  }
-  else if (x == "addr_led") {
-    if (!addrLedState) {
-      animOpen();
-      addLog("Kayar LED acildi [GPIO 4]");
-    } else {
-      animClose();
-      addLog("Kayar LED kapandi [GPIO 4]");
-    }
+    addLog(ledState ? "LED acildi [18]" : "LED kapandi [18]");
   }
   else if (x == "seat") {
     addLog("Koltuk pulse [22]");
@@ -716,10 +646,6 @@ void setup() {
 
   loadCfg();
 
-  strip.begin();
-  strip.show();
-  strip.setBrightness(255);
-
   pinMode(RELAY_LOCK_OPEN, OUTPUT);
   pinMode(RELAY_LOCK_CLOSE, OUTPUT);
   pinMode(RELAY_START, OUTPUT);
@@ -762,6 +688,7 @@ void setup() {
   addLog("AP baslatildi");
   addLog("Panel hazir");
 }
+
 void loop() {
   server.handleClient();
 

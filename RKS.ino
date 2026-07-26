@@ -3,6 +3,7 @@
 #include <Update.h>
 #include <EEPROM.h>
 #include <ESP32Servo.h>
+#include <FastLED.h> // FastLED Kütüphanesi
 
 const char* apSSID = "RKS";
 const char* apPassword = "44AFT748";
@@ -26,8 +27,14 @@ const uint8_t RELAY_OFF = HIGH;
 #define SERVO_LEFT_PIN    26
 #define SERVO_TRIGGER_PIN 27
 
-#define EEPROM_SIZE 64
-#define EEPROM_MAGIC 0x4D
+// --- FASTLED TANIMLARI ---
+#define LED_STRIP_PIN     4
+#define NUM_LEDS          60
+
+CRGB leds[NUM_LEDS];
+
+#define EEPROM_SIZE  128
+#define EEPROM_MAGIC 0x4E
 
 struct MirrorConfig {
   uint8_t magic;
@@ -35,6 +42,13 @@ struct MirrorConfig {
   uint8_t leftOpen;
   uint8_t rightClosed;
   uint8_t leftClosed;
+  // LED Ayarları
+  uint8_t ledEffect;     // 0:Kara Şimşek, 1:Gökkuşağı, 2:Ateş, 3:Meteor, 4:Polis, 5:Sabit Renk
+  uint8_t ledBrightness; // 0 - 255
+  uint8_t ledSpeed;      // 1 - 100
+  uint8_t solidR;
+  uint8_t solidG;
+  uint8_t solidB;
 };
 
 MirrorConfig cfg;
@@ -160,6 +174,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
   font-size:14px;
 }
 input[type=range]{width:100%}
+select, input[type=color]{
+  width:100%;
+  padding:8px;
+  border-radius:10px;
+  background:#04070d;
+  color:#edf2ff;
+  border:1px solid var(--line);
+  font-size:14px;
+}
+input[type=color]{height:42px;cursor:pointer;padding:2px}
 .uploadBox{
   background:#0f1727;
   border:1px solid var(--line);
@@ -191,14 +215,8 @@ input[type=file]{
   align-items:center;
   flex-wrap:wrap;
 }
-.heroLeft{
-  text-align:left;
-}
-.heroRight{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
+.heroLeft{text-align:left;}
+.heroRight{display:flex;gap:10px;flex-wrap:wrap;}
 .badge{
   padding:10px 12px;
   border-radius:12px;
@@ -243,6 +261,42 @@ input[type=file]{
       <button id="bfog" class="gray ctrl" onclick="cmd('fog')">Sis</button>
       <button id="bled" class="gray ctrl" onclick="cmd('led')">LED</button>
       <button id="bseat" class="gray ctrl" onclick="cmd('seat')">Koltuk</button>
+    </div>
+  </div>
+
+  <!-- LED KONTROL VE EFEKT KARTI -->
+  <div class="card">
+    <div class="sectionTitle">
+      <h3>LED Efekt & Işık Ayarları</h3>
+    </div>
+
+    <div class="grid2">
+      <div class="sliderWrap">
+        <div class="sliderHead"><span>Efekt Seçimi</span></div>
+        <select id="ledEff" onchange="saveLedCfg()">
+          <option value="0">Kara Şimşek (Merkezden)</option>
+          <option value="1">Gökkuşağı (Rainbow)</option>
+          <option value="2">Ateş Efekti (Fire)</option>
+          <option value="3">Meteor Yağmuru</option>
+          <option value="4">Polis Çakar</option>
+          <option value="5">Sabit Renk</option>
+        </select>
+      </div>
+
+      <div class="sliderWrap">
+        <div class="sliderHead"><span>Sabit Renk</span></div>
+        <input id="ledCol" type="color" value="#ff0000" onchange="saveLedCfg()">
+      </div>
+
+      <div class="sliderWrap">
+        <div class="sliderHead"><span>Parlaklık</span><b id="ledBrV">200</b></div>
+        <input id="ledBr" type="range" min="10" max="255" value="200" oninput="syncV()" onchange="saveLedCfg()">
+      </div>
+
+      <div class="sliderWrap">
+        <div class="sliderHead"><span>Efekt Hızı</span><b id="ledSpV">50</b></div>
+        <input id="ledSp" type="range" min="1" max="100" value="50" oninput="syncV()" onchange="saveLedCfg()">
+      </div>
     </div>
   </div>
 
@@ -310,6 +364,8 @@ function syncV(){
   id('loV').textContent=id('lo').value;
   id('rcV').textContent=id('rc').value;
   id('lcV').textContent=id('lc').value;
+  id('ledBrV').textContent=id('ledBr').value;
+  id('ledSpV').textContent=id('ledSp').value;
 }
 
 function setCtrls(ok){
@@ -349,6 +405,18 @@ function saveMir(){
   });
 }
 
+function saveLedCfg(){
+  const eff = id('ledEff').value;
+  const br = id('ledBr').value;
+  const sp = id('ledSp').value;
+  const col = id('ledCol').value.replace('#','');
+
+  fetch('/ledcfg?eff='+eff+'&br='+br+'&sp='+sp+'&col='+col,{cache:'no-store'})
+  .catch(()=>{
+    id('st').textContent='Bağlantı Yok';
+  });
+}
+
 function upd(){
   fetch('/s',{cache:'no-store'})
   .then(r=>r.json())
@@ -361,6 +429,12 @@ function upd(){
       id('lo').value=d.lo;
       id('rc').value=d.rc;
       id('lc').value=d.lc;
+      
+      id('ledEff').value=d.ledf||0;
+      id('ledBr').value=d.ledb||200;
+      id('ledSp').value=d.leds||50;
+      if(d.ledc) id('ledCol').value='#'+d.ledc;
+
       syncV();
       initDone=true;
     }
@@ -417,22 +491,32 @@ String getLogs() {
   return out;
 }
 
+// Delay süresince web sunucusunun kilitlenmesini ve bağlantı kesintisini önleyen fonksiyon
+void safeDelay(uint32_t ms) {
+  uint32_t start = millis();
+  while (millis() - start < ms) {
+    server.handleClient();
+    yield();
+    delay(1);
+  }
+}
+
 void relayWrite(uint8_t pin, bool onState) {
   digitalWrite(pin, onState ? RELAY_ON : RELAY_OFF);
 }
 
 void pulseRelay(uint8_t pin, uint16_t onMs = 250) {
   relayWrite(pin, true);
-  delay(onMs);
+  safeDelay(onMs);
   relayWrite(pin, false);
 }
 
 void lockCloseWithDoor() {
   relayWrite(RELAY_LOCK_CLOSE, true);
   relayWrite(RELAY_DOOR, true);
-  delay(1000);
+  safeDelay(1000);
   relayWrite(RELAY_LOCK_CLOSE, false);
-  delay(1000);
+  safeDelay(1000);
   relayWrite(RELAY_DOOR, false);
 }
 
@@ -442,12 +526,19 @@ void loadCfg() {
 
   if (cfg.magic != EEPROM_MAGIC ||
       cfg.rightOpen > 180 || cfg.leftOpen > 180 ||
-      cfg.rightClosed > 180 || cfg.leftClosed > 180) {
+      cfg.rightClosed > 180 || cfg.leftClosed > 180 ||
+      cfg.ledEffect > 5) {
     cfg.magic = EEPROM_MAGIC;
     cfg.rightOpen = 90;
     cfg.leftOpen = 90;
     cfg.rightClosed = 0;
     cfg.leftClosed = 0;
+    cfg.ledEffect = 0;
+    cfg.ledBrightness = 200;
+    cfg.ledSpeed = 50;
+    cfg.solidR = 255;
+    cfg.solidG = 0;
+    cfg.solidB = 0;
     EEPROM.put(0, cfg);
     EEPROM.commit();
   }
@@ -476,6 +567,101 @@ void closeMirrors() {
   addLog("Aynalar kapandi");
 }
 
+// --- FASTLED NON-BLOCKING EFEKT METOTLARI ---
+
+void runKaraSimsek() {
+  static int pos = 0;
+  static int dir = 1;
+
+  fadeToBlackBy(leds, NUM_LEDS, 60);
+
+  int left = 29 - pos;
+  int right = 30 + pos;
+
+  if (left >= 0 && left < NUM_LEDS) leds[left] = CRGB::Red;
+  if (right >= 0 && right < NUM_LEDS) leds[right] = CRGB::Red;
+
+  pos += dir;
+  if (pos >= 29 || pos <= 0) dir = -dir;
+}
+
+void runRainbow() {
+  static uint8_t gHue = 0;
+  fill_rainbow(leds, NUM_LEDS, gHue, 7);
+  gHue += 2;
+}
+
+void runFire() {
+  static byte heat[NUM_LEDS];
+  for (int i = 0; i < NUM_LEDS; i++) {
+    heat[i] = qsub8(heat[i], random8(0, ((50 * 10) / NUM_LEDS) + 2));
+  }
+  for (int k = NUM_LEDS - 1; k >= 2; k--) {
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3;
+  }
+  if (random8() < 120) {
+    int y = random8(7);
+    heat[y] = qadd8(heat[y], random8(160, 255));
+  }
+  for (int j = 0; j < NUM_LEDS; j++) {
+    leds[j] = HeatColor(heat[j]);
+  }
+}
+
+void runMeteor() {
+  static int meteorPos = 0;
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (random8() < 70) leds[i].fadeToBlackBy(64);
+  }
+  for (int j = 0; j < 6; j++) {
+    if ((meteorPos - j >= 0) && (meteorPos - j < NUM_LEDS)) {
+      leds[meteorPos - j] = CRGB::White;
+    }
+  }
+  meteorPos++;
+  if (meteorPos >= NUM_LEDS + 6) meteorPos = 0;
+}
+
+void runPolice() {
+  static uint8_t step = 0;
+  step++;
+  if (step % 2 == 0) {
+    for (int i = 0; i < NUM_LEDS / 2; i++) leds[i] = CRGB::Red;
+    for (int i = NUM_LEDS / 2; i < NUM_LEDS; i++) leds[i] = CRGB::Black;
+  } else {
+    for (int i = 0; i < NUM_LEDS / 2; i++) leds[i] = CRGB::Black;
+    for (int i = NUM_LEDS / 2; i < NUM_LEDS; i++) leds[i] = CRGB::Blue;
+  }
+}
+
+void runSolid() {
+  fill_solid(leds, NUM_LEDS, CRGB(cfg.solidR, cfg.solidG, cfg.solidB));
+}
+
+void updateLedEffect() {
+  static unsigned long lastUpdate = 0;
+  
+  // Efekt hızını interval milisaniyesine haritalama (1 = Yavaş ~100ms, 100 = Hızlı ~10ms)
+  uint16_t interval = map(cfg.ledSpeed, 1, 100, 100, 10);
+
+  if (millis() - lastUpdate < interval) return;
+  lastUpdate = millis();
+
+  FastLED.setBrightness(cfg.ledBrightness);
+
+  switch (cfg.ledEffect) {
+    case 0: runKaraSimsek(); break;
+    case 1: runRainbow();    break;
+    case 2: runFire();       break;
+    case 3: runMeteor();     break;
+    case 4: runPolice();     break;
+    case 5: runSolid();      break;
+    default: runKaraSimsek(); break;
+  }
+
+  FastLED.show();
+}
+
 void stopAlarmWithLockOpen(bool logText = true) {
   pulseRelay(RELAY_LOCK_OPEN, 250);
   alarmActive = false;
@@ -483,6 +669,9 @@ void stopAlarmWithLockOpen(bool logText = true) {
 }
 
 String statusJson() {
+  char hexCol[7];
+  snprintf(hexCol, sizeof(hexCol), "%02X%02X%02X", cfg.solidR, cfg.solidG, cfg.solidB);
+
   String j = "{";
   j += "\"st\":\"Bağlandı\",";
   j += "\"m\":" + String(motorRunning ? "true" : "false") + ",";
@@ -494,19 +683,14 @@ String statusJson() {
   j += "\"lo\":" + String(cfg.leftOpen) + ",";
   j += "\"rc\":" + String(cfg.rightClosed) + ",";
   j += "\"lc\":" + String(cfg.leftClosed) + ",";
+  j += "\"ledf\":" + String(cfg.ledEffect) + ",";
+  j += "\"ledb\":" + String(cfg.ledBrightness) + ",";
+  j += "\"leds\":" + String(cfg.ledSpeed) + ",";
+  j += "\"ledc\":\"" + String(hexCol) + "\",";
   j += "\"lg\":\"" + getLogs() + "\"";
   j += "}";
   return j;
 }
-
-void handleRoot() {
-  server.send_P(200, "text/html; charset=utf-8", page);
-}
-
-void handleStatus() {
-  server.send(200, "application/json", statusJson());
-}
-
 void handleCmd() {
   String x = server.arg("x");
 
@@ -518,10 +702,10 @@ void handleCmd() {
         alarmActive = false;
         addLog("Alarm kapatildi");
       }
-      delay(350);
+      safeDelay(350);
       addLog("Motor start -> Start x2 [16]");
       pulseRelay(RELAY_START, 250);
-      delay(300);
+      safeDelay(300);
       pulseRelay(RELAY_START, 250);
       motorRunning = true;
       addLog("Motor calisiyor");
@@ -609,6 +793,23 @@ void handleMirrorSave() {
   server.send(200, "text/plain", "OK");
 }
 
+void handleLedSave() {
+  if (server.hasArg("eff")) cfg.ledEffect = constrain(server.arg("eff").toInt(), 0, 5);
+  if (server.hasArg("br"))  cfg.ledBrightness = constrain(server.arg("br").toInt(), 0, 255);
+  if (server.hasArg("sp"))  cfg.ledSpeed = constrain(server.arg("sp").toInt(), 1, 100);
+
+  if (server.hasArg("col")) {
+    String c = server.arg("col");
+    long num = strtol(c.c_str(), NULL, 16);
+    cfg.solidR = (num >> 16) & 0xFF;
+    cfg.solidG = (num >> 8) & 0xFF;
+    cfg.solidB = num & 0xFF;
+  }
+
+  saveCfg();
+  server.send(200, "text/plain", "OK");
+}
+
 void handleUpdateUpload() {
   HTTPUpload& upload = server.upload();
 
@@ -634,7 +835,7 @@ void handleUpdateDone() {
   server.sendHeader("Connection", "close");
   if (otaOK) {
     server.send(200, "text/plain", "GUNCELLEME_BASARILI");
-    delay(700);
+    safeDelay(700);
     ESP.restart();
   } else {
     server.send(500, "text/plain", "GUNCELLEME_HATA");
@@ -645,6 +846,12 @@ void setup() {
   Serial.begin(115200);
 
   loadCfg();
+
+  // FastLED Kurulumu
+  FastLED.addLeds<WS2812B, LED_STRIP_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.setBrightness(cfg.ledBrightness);
+  FastLED.clear();
+  FastLED.show();
 
   pinMode(RELAY_LOCK_OPEN, OUTPUT);
   pinMode(RELAY_LOCK_CLOSE, OUTPUT);
@@ -682,6 +889,7 @@ void setup() {
   server.on("/s", HTTP_GET, handleStatus);
   server.on("/c", HTTP_GET, handleCmd);
   server.on("/m", HTTP_GET, handleMirrorSave);
+  server.on("/ledcfg", HTTP_GET, handleLedSave);
   server.on("/update", HTTP_POST, handleUpdateDone, handleUpdateUpload);
   server.begin();
 
@@ -700,10 +908,16 @@ void loop() {
   if (firstRun) {
     firstRun = false;
     trigState = trig;
-    if (trigState) openMirrors();
-    else closeMirrors();
+    if (trigState) {
+      openMirrors();
+    } else {
+      closeMirrors();
+      FastLED.clear();
+      FastLED.show();
+    }
   }
 
+  // Tetiklenme Durum Değişimleri
   if (!trigState && trig) {
     trigState = true;
     addLog("Servo tetik aktif [27]");
@@ -712,6 +926,15 @@ void loop() {
     trigState = false;
     addLog("Servo tetik pasif [27]");
     closeMirrors();
+    
+    // Tetik pasif olduğunda LED şeridi söndür
+    FastLED.clear();
+    FastLED.show();
+  }
+
+  // 27. Tetik Pini aktif olduğu sürece seçilen FastLED efekti çalışır
+  if (trigState) {
+    updateLedEffect();
   }
 
   delay(2);

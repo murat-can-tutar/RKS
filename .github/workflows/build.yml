@@ -40,7 +40,7 @@ jobs:
       - name: Install libraries
         run: |
           arduino-cli lib install "ESP32Servo"
-          arduino-cli lib install "Adafruit NeoPixel"
+          arduino-cli lib install "FastLED"
 
       - name: Compile sketch and export BIN
         run: |

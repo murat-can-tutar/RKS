@@ -786,16 +786,14 @@ void handleUpdateDone() {
    ======================================================================== */
 void setup() {
   Serial.begin(115200);
-
-  digitalRead(RELAY_LOCK_OPEN);
-  digitalWrite(RELAY_LOCK_OPEN, RELAY_OFF);  pinMode(RELAY_LOCK_OPEN, OUTPUT);
-  digitalWrite(RELAY_LOCK_CLOSE, RELAY_OFF); pinMode(RELAY_LOCK_CLOSE, OUTPUT);
-  digitalWrite(RELAY_START, RELAY_OFF);      pinMode(RELAY_START, OUTPUT);
-  digitalWrite(RELAY_ALARM, RELAY_OFF);      pinMode(RELAY_ALARM, OUTPUT);
-  digitalWrite(RELAY_LED, RELAY_OFF);        pinMode(RELAY_LED, OUTPUT);
-  digitalWrite(RELAY_HEADLIGHT, RELAY_OFF);  pinMode(RELAY_HEADLIGHT, OUTPUT);
-  digitalWrite(RELAY_SEAT, RELAY_OFF);       pinMode(RELAY_SEAT, OUTPUT);
-  digitalWrite(RELAY_DOOR, RELAY_OFF);       pinMode(RELAY_DOOR, OUTPUT);
+  pinMode(RELAY_LOCK_OPEN, OUTPUT);   digitalWrite(RELAY_LOCK_OPEN, RELAY_OFF);
+  pinMode(RELAY_LOCK_CLOSE, OUTPUT);  digitalWrite(RELAY_LOCK_CLOSE, RELAY_OFF);
+  pinMode(RELAY_START, OUTPUT);       digitalWrite(RELAY_START, RELAY_OFF);
+  pinMode(RELAY_ALARM, OUTPUT);       digitalWrite(RELAY_ALARM, RELAY_OFF);
+  pinMode(RELAY_LED, OUTPUT);         digitalWrite(RELAY_LED, RELAY_OFF);
+  pinMode(RELAY_HEADLIGHT, OUTPUT);   digitalWrite(RELAY_HEADLIGHT, RELAY_OFF);
+  pinMode(RELAY_SEAT, OUTPUT);        digitalWrite(RELAY_SEAT, RELAY_OFF);
+  pinMode(RELAY_DOOR, OUTPUT);        digitalWrite(RELAY_DOOR, RELAY_OFF);
 
   pinMode(SERVO_TRIGGER_PIN, INPUT_PULLDOWN);
 
@@ -824,6 +822,7 @@ void setup() {
   addLog("AP baslatildi");
   addLog("Sistem hazir");
 }
+
 
 void loop() {
   server.handleClient();

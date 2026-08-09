@@ -49,7 +49,7 @@ struct SystemConfig {
   uint8_t leftOpen;
   uint8_t rightClosed;
   uint8_t leftClosed;
-  uint8_t animType;   // 0: Rastgele Parıltılı Nefes, 1: Çift Uçtan Merkeze, 2: Sinematik Nefes Dolum, 3: Cyberpunk Tarama, 4: 3 Aşamalı Özel
+  uint8_t animType;
   uint8_t colorR;
   uint8_t colorG;
   uint8_t colorB;

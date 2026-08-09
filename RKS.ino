@@ -14,8 +14,8 @@ const char* apPassword = "44AFT748";
 WebServer server(80);
 
 // Active-LOW Röle Mantığı
-const uint8_t RELAY_ON  = HIGH;
-const uint8_t RELAY_OFF = LOW;
+const uint8_t RELAY_ON  = LOW;
+const uint8_t RELAY_OFF = HIGH;
 
 // Röle Pin Haritası
 #define RELAY_LOCK_OPEN    13

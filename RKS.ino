@@ -23,9 +23,9 @@ const uint8_t RELAY_OFF = HIGH;
 #define RELAY_START        16
 #define RELAY_ALARM        17
 #define RELAY_LED          18
-#define RELAY_HEADLIGHT    21  // Ana Far ve Sis Farı
+#define RELAY_DOOR         21
 #define RELAY_SEAT         22  // Koltuk
-#define RELAY_DOOR         23
+#define RELAY_HEADLIGHT    23  // Ana Far ve Sis Farı
 
 // Servo ve Tetik Pinleri
 #define SERVO_RIGHT_PIN    25

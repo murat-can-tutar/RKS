@@ -34,7 +34,7 @@ const uint8_t RELAY_OFF = HIGH;
 
 // Adreslenebilir LED (12V WS2811 / WS281 ARGB)
 #define LED_STRIP_PIN      32
-#define NUM_LEDS           20  // Şeridinizdeki toplam piksel sayısı
+#define NUM_LEDS           16  // Şeridinizdeki toplam piksel sayısı
 Adafruit_NeoPixel strip(NUM_LEDS, LED_STRIP_PIN, NEO_BRG + NEO_KHZ800);
 
 /* ========================================================================

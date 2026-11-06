@@ -189,6 +189,9 @@ input[type=file]{width:100%;color:#dbe6ff;margin-bottom:10px}
 
   <div class="card">
     <div class="sectionTitle"><h3>Far Ayarları</h3></div>
+    <div style="margin-bottom:12px">
+      <button id="banim" class="gray ctrl" onclick="cmd('anim_toggle')">Animasyonu Aç</button>
+    </div>
     <div class="grid2">
       <div class="selectWrap">
         <div class="sliderHead"><span>Animasyon Stili</span></div>
@@ -303,6 +306,8 @@ function upd(){
     id('bfar').className=d.f?'green ctrl':'gray ctrl';
     id('bfog').className=d.g?'green ctrl':'gray ctrl';
     id('bled').className=d.l?'green ctrl':'gray ctrl';
+    id('banim').textContent=d.an?'Animasyonu Kapat':'Animasyonu Aç';
+    id('banim').className=d.an?'red ctrl':'green ctrl';
     id('bo').disabled=d.m; id('bc').disabled=d.m; id('balarm').disabled=d.m;
     id('log').innerHTML=d.lg||''; id('log').scrollTop=id('log').scrollHeight;
   }).catch(()=>{ id('st').textContent='Bağlantı Yok'; setCtrls(false); });
@@ -320,6 +325,29 @@ void addLog(const String &s) {
     for (uint8_t i = 0; i < 9; i++) logsBuf[i] = logsBuf[i + 1];
     logsBuf[9] = s;
   }
+}
+
+// JSON string alanlarinda tirnak, ters bolu ve kontrol karakterlerini kacirir.
+String jsonEscape(const String &input) {
+  String out;
+  out.reserve(input.length() + 8);
+  for (size_t i = 0; i < input.length(); i++) {
+    char c = input[i];
+    switch (c) {
+      case '"': out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\b': out += "\\b"; break;
+      case '\f': out += "\\f"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if ((uint8_t)c < 0x20) out += ' ';
+        else out += c;
+        break;
+    }
+  }
+  return out;
 }
 
 String getLogs() {
@@ -352,6 +380,15 @@ void loadCfg() {
     cfg.colorR      = 255; cfg.colorG    = 255; cfg.colorB = 255;
     cfg.animSpeed   = 30;
     EEPROM.put(0, cfg); EEPROM.commit();
+  } else {
+    // Bozulmus/eski EEPROM degerleri animasyon motorunu kilitlemesin.
+    cfg.animType = constrain(cfg.animType, 0, 4);
+    cfg.brightness = constrain(cfg.brightness, 10, 255);
+    cfg.animSpeed = constrain(cfg.animSpeed, 5, 100);
+    cfg.rightOpen = constrain(cfg.rightOpen, 0, 180);
+    cfg.leftOpen = constrain(cfg.leftOpen, 0, 180);
+    cfg.rightClosed = constrain(cfg.rightClosed, 0, 180);
+    cfg.leftClosed = constrain(cfg.leftClosed, 0, 180);
   }
 }
 
@@ -639,6 +676,7 @@ String statusJson() {
   j += "\"f\":" + String(headlightState ? "true" : "false") + ",";
   j += "\"g\":" + String(fogActive ? "true" : "false") + ",";
   j += "\"l\":" + String(ledState ? "true" : "false") + ",";
+  j += "\"an\":" + String(animState != ANIM_OFF ? "true" : "false") + ",";
   j += "\"ro\":" + String(cfg.rightOpen) + ",";
   j += "\"lo\":" + String(cfg.leftOpen) + ",";
   j += "\"rc\":" + String(cfg.rightClosed) + ",";
@@ -649,7 +687,7 @@ String statusJson() {
   j += "\"cg\":" + String(cfg.colorG) + ",";
   j += "\"cb\":" + String(cfg.colorB) + ",";
   j += "\"br\":" + String(cfg.brightness) + ",";
-  j += "\"lg\":\"" + getLogs() + "\"";
+  j += "\"lg\":\"" + jsonEscape(getLogs()) + "\"";
   j += "}";
   return j;
 }
@@ -689,20 +727,44 @@ void handleCmd() {
     relayWrite(RELAY_LOCK_CLOSE, true); relayWrite(RELAY_DOOR, true);
     delay(1000);
     relayWrite(RELAY_LOCK_CLOSE, false); relayWrite(RELAY_DOOR, false);
-    addLog("Kilit kapat [14] + Kapi [23]");
+    addLog("Kilit kapat [14] + Kapi [21]");
   }
   else if (x == "alarm_toggle") {
     if (!alarmActive) { pulseRelay(RELAY_ALARM, 300); alarmActive = true; addLog("Alarm baslatildi"); }
     else { pulseRelay(RELAY_LOCK_OPEN, 250); alarmActive = false; addLog("Alarm kapatildi"); }
   }
   else if (x == "far") {
+    // Normal far komutu, devam eden sis/cakar zamanlamasini iptal eder.
     fogActive = false;
+    fogSeq = FOG_IDLE;
     headlightState = !headlightState;
     relayWrite(RELAY_HEADLIGHT, headlightState);
-    addLog(headlightState ? "Far açıldı [21]" : "Far kapandı [21]");
+    addLog(headlightState ? "Far açıldı [23]" : "Far kapandı [23]");
   }
   else if (x == "fog") {
     triggerFogSequence();
+  }
+  else if (x == "anim_toggle") {
+    // Animasyon web'den yalnızca kontak açıkken manuel kontrol edilebilir.
+    if (digitalRead(SERVO_TRIGGER_PIN) != HIGH) {
+      addLog("Animasyon acilamadi: Kontak kapali");
+      server.send(409, "text/plain", "IGNITION_OFF");
+      return;
+    }
+
+    if (animState == ANIM_OFF) {
+      animState = ANIM_OPENING;
+      animStep = 0;
+      animSubStep = 0;
+      addLog("Web: Animasyon acildi");
+    } else {
+      animState = ANIM_OFF;
+      animStep = 0;
+      animSubStep = 0;
+      strip.clear();
+      strip.show();
+      addLog("Web: Animasyon kapatildi");
+    }
   }
   else if (x == "led") {
     ledState = !ledState;
@@ -719,13 +781,14 @@ void handleCmd() {
 
 void handleLedSave() {
   if (server.hasArg("at") && server.hasArg("r") && server.hasArg("g") && server.hasArg("b") && server.hasArg("br")) {
-    cfg.animType   = server.arg("at").toInt();
-    cfg.colorR     = server.arg("r").toInt();
-    cfg.colorG     = server.arg("g").toInt();
-    cfg.colorB     = server.arg("b").toInt();
-    cfg.brightness = server.arg("br").toInt();
+    // URL parametrelerini arayuz disindan gelen isteklere karsi da sinirla.
+    cfg.animType   = constrain(server.arg("at").toInt(), 0, 4);
+    cfg.colorR     = constrain(server.arg("r").toInt(), 0, 255);
+    cfg.colorG     = constrain(server.arg("g").toInt(), 0, 255);
+    cfg.colorB     = constrain(server.arg("b").toInt(), 0, 255);
+    cfg.brightness = constrain(server.arg("br").toInt(), 10, 255);
     if (server.hasArg("animSpeed")) {
-      cfg.animSpeed = server.arg("animSpeed").toInt();
+      cfg.animSpeed = constrain(server.arg("animSpeed").toInt(), 5, 100);
     }
     saveCfg();
     addLog("LED ayarlari kaydedildi");

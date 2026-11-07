@@ -9,7 +9,7 @@
    1. GENEL VE DONANIM TANIMLAMALARI
    ======================================================================== */
 const char* apSSID     = "RKS";
-const char* apPassword = "44AFT748";
+const char* apPassword = "44MCT748";
 
 WebServer server(80);
 
@@ -85,6 +85,7 @@ enum AnimState { ANIM_OFF, ANIM_OPENING, ANIM_ON, ANIM_CLOSING };
 AnimState animState = ANIM_OFF;
 int animStep = 0;
 int animSubStep = 0;
+uint8_t animFrame = 0; // Yeni sürekli efektlerin animasyon karesi
 
 // Log Tamponu
 String logsBuf[10];
@@ -165,7 +166,7 @@ input[type=file]{width:100%;color:#dbe6ff;margin-bottom:10px}
 
   <div class="card">
     <div class="hero">
-      <div><h1>RKS Newlight Pro</h1></div>
+      <div><h1>RKS Newlight Pro 2024</h1></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <div class="badge">Şase: L8YNCBPS0RKB21245</div>
         <div class="statusPill"><span class="dot"></span><span id="st">Bağlanıyor...</span></div>
@@ -174,7 +175,7 @@ input[type=file]{width:100%;color:#dbe6ff;margin-bottom:10px}
   </div>
 
   <div class="card">
-    <div class="sectionTitle"><h3>Sistem Kontrolü</h3></div>
+    <div class="sectionTitle"><h3>Ana Sistem Kontrolü</h3></div>
     <div class="row">
       <button id="motorBtn" class="blue" onclick="cmd('motor')">Start</button>
       <button id="bo" class="gray ctrl" onclick="cmd('lock_open')">Kilit Aç</button>
@@ -188,19 +189,24 @@ input[type=file]{width:100%;color:#dbe6ff;margin-bottom:10px}
   </div>
 
   <div class="card">
-    <div class="sectionTitle"><h3>Far Ayarları</h3></div>
+    <div class="sectionTitle"><h3>A-RGB Ayarları</h3></div>
     <div style="margin-bottom:12px">
-      <button id="banim" class="gray ctrl" onclick="cmd('anim_toggle')">Animasyonu Aç</button>
+      <button id="banim" class="green ctrl" style="width:100%;font-weight:700" onclick="cmd('anim_toggle')">Animasyonu Aç</button>
     </div>
     <div class="grid2">
       <div class="selectWrap">
         <div class="sliderHead"><span>Animasyon Stili</span></div>
         <select id="animSel" class="selectStyle">
-          <option value="0">1. Rastgele Parıltılı Nefes Efekti</option>
-          <option value="1">2. Çift Uçtan Merkeze Senkronize</option>
-          <option value="2">3. Sinematik Nefes Alarak Dolum</option>
-          <option value="3">4. Cyberpunk Tarama Çizgisi</option>
-          <option value="4">5. 3 Aşamalı Özel Kombinasyon</option>
+          <option value="0">1. Parıltılı Nefes</option>
+          <option value="1">2. Merkeze Doğru</option>
+          <option value="2">3. Nefes Alma</option>
+          <option value="3">4. Tarama Çizgisi</option>
+          <option value="4">5. 3 Aşamalı</option>
+          <option value="5">6. Rastgele Parıltı</option>
+          <option value="6">7. Gökkuşağı Kayması</option>
+          <option value="7">8. Merkezden Dışa</option>
+          <option value="8">9. Dıştan Merkeze</option>
+          <option value="9">10. Kuzey Işıkları</option>
         </select>
       </div>
       <div class="selectWrap">
@@ -217,12 +223,12 @@ input[type=file]{width:100%;color:#dbe6ff;margin-bottom:10px}
       </div>
     </div>
     <div style="margin-top:12px">
-      <button class="blue ctrl" onclick="saveLed()">Far Ayarlarını Kaydet</button>
+      <button class="blue ctrl" onclick="saveLed()">Animasyon Ayarlarını Kaydet</button>
     </div>
   </div>
 
   <div class="card">
-    <div class="sectionTitle"><h3>Katlanır Ayna Ayarları</h3></div>
+    <div class="sectionTitle"><h3>H2 Ayna Ayarları</h3></div>
     <div class="grid2">
       <div class="sliderWrap"><div class="sliderHead"><span>Sağ Açık</span><b id="roV">90</b></div><input id="ro" type="range" min="0" max="180" value="90" oninput="syncV()"></div>
       <div class="sliderWrap"><div class="sliderHead"><span>Sol Açık</span><b id="loV">90</b></div><input id="lo" type="range" min="0" max="180" value="90" oninput="syncV()"></div>
@@ -234,7 +240,7 @@ input[type=file]{width:100%;color:#dbe6ff;margin-bottom:10px}
 
   <div class="grid2">
     <div class="card">
-      <div class="sectionTitle"><h3>OTA Güncelleme</h3></div>
+      <div class="sectionTitle"><h3>Yazılım Güncelleme</h3></div>
       <div class="uploadBox">
         <form method="POST" action="/update" enctype="multipart/form-data">
           <input type="file" name="update"><button class="blue" type="submit">Sistemi Güncele</button>
@@ -382,7 +388,7 @@ void loadCfg() {
     EEPROM.put(0, cfg); EEPROM.commit();
   } else {
     // Bozulmus/eski EEPROM degerleri animasyon motorunu kilitlemesin.
-    cfg.animType = constrain(cfg.animType, 0, 4);
+    cfg.animType = constrain(cfg.animType, 0, 9);
     cfg.brightness = constrain(cfg.brightness, 10, 255);
     cfg.animSpeed = constrain(cfg.animSpeed, 5, 100);
     cfg.rightOpen = constrain(cfg.rightOpen, 0, 180);
@@ -490,8 +496,94 @@ void setAllLeds(uint8_t r, uint8_t g, uint8_t b) {
   strip.show();
 }
 
+uint32_t wheelColor(byte pos) {
+  pos = 255 - pos;
+  if (pos < 85) return strip.Color(255 - pos * 3, 0, pos * 3);
+  if (pos < 170) { pos -= 85; return strip.Color(0, pos * 3, 255 - pos * 3); }
+  pos -= 170;
+  return strip.Color(pos * 3, 255 - pos * 3, 0);
+}
+
+// Sürekli efektlerin tamamı LED şeridinin iki merkez pikselinden başlar
+// ve aynı anda sağa/sola, dış uçlara doğru ilerler.
+void renderContinuousAnimation() {
+  const int half = NUM_LEDS / 2;
+  const uint8_t phase = animFrame % max(1, half);
+
+  if (cfg.animType == 5) {
+    // Rastgele parıltılar: her döngüde parıltıların erişebildiği alan
+    // merkezden dışa doğru genişler.
+    for (int i = 0; i < NUM_LEDS; i++)
+      strip.setPixelColor(i, strip.Color(cfg.colorR / 7, cfg.colorG / 7, cfg.colorB / 7));
+    for (int n = 0; n < 4; n++) {
+      int d = random(phase + 1);
+      int left = half - 1 - d, right = half + d;
+      uint32_t sparkle = (n == 0) ? strip.Color(255, 255, 255) : strip.Color(255, 190, 70);
+      strip.setPixelColor(left, sparkle);
+      strip.setPixelColor(right, sparkle);
+    }
+  }
+  else if (cfg.animType == 6) {
+    // Gökkuşağı renkleri merkezden iki uca doğru akar.
+    for (int d = 0; d < half; d++) {
+      uint32_t c = wheelColor((uint8_t)(animFrame * 5 + d * 28));
+      strip.setPixelColor(half - 1 - d, c);
+      strip.setPixelColor(half + d, c);
+    }
+  }
+  else if (cfg.animType == 7) {
+    // Merkezden dışarı ilerleyen, arkası yumuşakça sönen çift kuyruk.
+    strip.clear();
+    for (int tail = 0; tail < 4; tail++) {
+      int d = (int)phase - tail;
+      if (d >= 0 && d < half) {
+        uint8_t scale = 255 / (tail + 1);
+        uint32_t c = strip.Color((cfg.colorR * scale) / 255,
+                                 (cfg.colorG * scale) / 255,
+                                 (cfg.colorB * scale) / 255);
+        strip.setPixelColor(half - 1 - d, c);
+        strip.setPixelColor(half + d, c);
+      }
+    }
+  }
+  else if (cfg.animType == 8) {
+    // 9. efekt: 8. efektin ters yönü. İki dış uçtan merkeze doğru
+    // ilerleyen çift kuyruklu ışık.
+    strip.clear();
+    int head = half - 1 - (int)phase;
+    for (int tail = 0; tail < 4; tail++) {
+      int d = head + tail;
+      if (d >= 0 && d < half) {
+        uint8_t scale = 255 / (tail + 1);
+        uint32_t c = strip.Color((cfg.colorR * scale) / 255,
+                                 (cfg.colorG * scale) / 255,
+                                 (cfg.colorB * scale) / 255);
+        strip.setPixelColor(half - 1 - d, c);
+        strip.setPixelColor(half + d, c);
+      }
+    }
+  }
+  else if (cfg.animType == 9) {
+    // 10. efekt: Kuzey Işıkları. Şerit boyunca renk geçişi ve
+    // zamana bağlı yumuşak parlaklık dalgaları oluşturur.
+    for (int i = 0; i < NUM_LEDS; i++) {
+      float wave = sin((i * 0.34f) + (animFrame * 0.13f));
+      uint8_t brightness = (uint8_t)(65 + ((wave + 1.0f) * 85.0f));
+      uint32_t c = wheelColor((uint8_t)(animFrame * 3 + i * 9));
+      uint8_t r = (uint8_t)(c >> 16);
+      uint8_t g = (uint8_t)(c >> 8);
+      uint8_t b = (uint8_t)c;
+      strip.setPixelColor(i, strip.Color((r * brightness) / 255,
+                                         (g * brightness) / 255,
+                                         (b * brightness) / 255));
+    }
+  }
+  strip.show();
+  animFrame++;
+}
+
 void handleLedAnimation() { 
-  if (animState == ANIM_ON || animState == ANIM_OFF) return;
+  if (animState == ANIM_OFF) return;
 
   static unsigned long localAnimTimer = 0;
   // Çubuk sağa kaydıkça hız artacak şekilde ayarlandı (yüksek değer = küçük gecikme = daha hızlı)
@@ -500,6 +592,13 @@ void handleLedAnimation() {
     return;
   }
   localAnimTimer = millis();
+
+  // İlk beş animasyonun mevcut çalışma şekli korunur. Yeni efektler,
+  // açılış tamamlandıktan sonra sürekli olarak çalışır.
+  if (animState == ANIM_ON) {
+    if (cfg.animType >= 5 && cfg.animType <= 9) renderContinuousAnimation();
+    return;
+  }
 
   int totalLeds = NUM_LEDS;
   int half = totalLeds / 2;
@@ -595,6 +694,20 @@ void handleLedAnimation() {
       }
     }
     
+    // Yeni efektler için ortak merkezden çift uca açılış animasyonu.
+    else if (cfg.animType >= 5 && cfg.animType <= 9) {
+      if (animStep < half) {
+        strip.setPixelColor(half - 1 - animStep, mainColor);
+        strip.setPixelColor(half + animStep, mainColor);
+        strip.show();
+        animStep++;
+      } else {
+        animStep = 0;
+        animFrame = 0;
+        animState = ANIM_ON;
+      }
+    }
+
     // Stili 4: 3 Aşamalı Özel Kombinasyon
     else if (cfg.animType == 4) { 
       static uint8_t phase4 = 0;
@@ -745,22 +858,20 @@ void handleCmd() {
     triggerFogSequence();
   }
   else if (x == "anim_toggle") {
-    // Animasyon web'den yalnızca kontak açıkken manuel kontrol edilebilir.
-    if (digitalRead(SERVO_TRIGGER_PIN) != HIGH) {
-      addLog("Animasyon acilamadi: Kontak kapali");
-      server.send(409, "text/plain", "IGNITION_OFF");
-      return;
-    }
-
+    // Animasyon web panelinden kontak kapaliyken de manuel kontrol edilebilir.
+    // Kontak kapandiginda mevcut otomatik kapatma davranisi korunur;
+    // sonrasinda kullanici isterse animasyonu web panelinden yeniden acabilir.
     if (animState == ANIM_OFF) {
       animState = ANIM_OPENING;
       animStep = 0;
       animSubStep = 0;
+      animFrame = 0;
       addLog("Web: Animasyon acildi");
     } else {
       animState = ANIM_OFF;
       animStep = 0;
       animSubStep = 0;
+      animFrame = 0;
       strip.clear();
       strip.show();
       addLog("Web: Animasyon kapatildi");
@@ -782,7 +893,7 @@ void handleCmd() {
 void handleLedSave() {
   if (server.hasArg("at") && server.hasArg("r") && server.hasArg("g") && server.hasArg("b") && server.hasArg("br")) {
     // URL parametrelerini arayuz disindan gelen isteklere karsi da sinirla.
-    cfg.animType   = constrain(server.arg("at").toInt(), 0, 4);
+    cfg.animType   = constrain(server.arg("at").toInt(), 0, 9);
     cfg.colorR     = constrain(server.arg("r").toInt(), 0, 255);
     cfg.colorG     = constrain(server.arg("g").toInt(), 0, 255);
     cfg.colorB     = constrain(server.arg("b").toInt(), 0, 255);
@@ -903,7 +1014,7 @@ void loop() {
     trigState = trig;
     if (trigState) {
       openMirrors();
-      animState = ANIM_OPENING; animStep = 0; animSubStep = 0;
+      animState = ANIM_OPENING; animStep = 0; animSubStep = 0; animFrame = 0;
     } else {
       closeMirrors();
       animState = ANIM_OFF; strip.clear(); strip.show();
@@ -914,7 +1025,7 @@ void loop() {
     trigState = true;
     addLog("Kontak açıldı [27]");
     openMirrors();
-    animState = ANIM_OPENING; animStep = 0; animSubStep = 0;
+    animState = ANIM_OPENING; animStep = 0; animSubStep = 0; animFrame = 0;
   } else if (trigState && !trig) {
     trigState = false;
     addLog("Kontak kapatildi [27]");
